@@ -1,5 +1,5 @@
 {
- "homepage": "https://<victoranih>.github.io/<crevanotap-testing>",
+ "homepage": "https://victoranih.github.io/crevanotap-testing",
  "type": "module",
  "scripts": {
   "lint": "eslint .",
