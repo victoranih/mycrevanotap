@@ -9,6 +9,7 @@ services:
         fromDatabase:
           name: my-database
           property: connectionString
+   plan: free          
 
 databases:
   - name: my-database
