@@ -1,30 +1,18 @@
 services:
-  # 1. THE BACKEND SERVICE
   - type: web
-    name: my-web-backend
-    env: node # Change to python, go, etc. if needed
+    name: node-postgres-backend
+    env: node
     plan: free
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
-      # This automatically grabs the database connection URL
       - key: DATABASE_URL
         fromDatabase:
-          name: my-database
+          name: core-postgres-db
           property: connectionString
-
-  # 2. THE FRONTEND SERVICE
-  - type: web
-    name: my-web-frontend
-    env: static # Or node, depending on your frontend
-    plan: free
-    envVars:
-      # This automatically passes your backend URL to your frontend
-      - key: VITE_API_URL # Change to REACT_APP_API_URL or what your code uses
-        fromService:
-          type: web
-          name: my-web-backend
-          property: url
+      - key: NODE_ENV
+        value: production
 
 databases:
-  # 3. THE DATABASE
-  - name: my-database
+  - name: core-postgres-db
     plan: free
