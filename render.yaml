@@ -3,11 +3,12 @@ services:
   - type: web
     name: backend-service
     env: node
-    plan: free # Change to starter if you exceed free limits
-    # Points Render to your monorepo's backend subdirectory
-    rootDir: server 
+    plan: free 
+    # FIX: Remove 'server' and use '.' to point to the root directory
+    rootDir: . 
     buildCommand: npm install
-    startCommand: npm start
+    # FIX: Tell node explicitly to run your server file from the root folder
+    startCommand: node server/index.js 
     envVars:
       - key: NODE_ENV
         value: production
@@ -21,4 +22,3 @@ services:
 databases:
   - name: my-monorepo-db
     plan: free
-    
