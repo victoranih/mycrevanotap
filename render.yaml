@@ -21,4 +21,4 @@ services:
 databases:
   - name: my-monorepo-db
     plan: free
-    postgresVersion: "13"
+    
