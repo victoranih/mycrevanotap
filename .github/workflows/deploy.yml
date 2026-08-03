@@ -33,7 +33,25 @@ jobs:
         run: npm ci
 
       - name: Build Project
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-size: 20
+
+      - name: Install Frontend Dependencies
+        # Since package.json is at the root, we run install normally
+        run: npm ci
+
+      - name: Build Frontend Application
+        # This injects your secret directly into Vite while it compiles your src files
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: npm run build
+
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

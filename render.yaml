@@ -1,18 +1,27 @@
+# Add your GitHub repository link at the very top
+repo: https://github.com/victoranih/crevanotap-testing
+
 services:
+  # 1. Define the Node.js Backend Service
   - type: web
-    name: node-postgres-backend
+    name: backend-service
     env: node
-    plan: free
+    plan: free # Change to starter if you exceed free limits
+    # Points Render to your monorepo's backend subdirectory
+    rootDir: server 
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: core-postgres-db
-          property: connectionString
       - key: NODE_ENV
         value: production
+      # Connects the database to the backend using Render's secure internal network
+      - key: DATABASE_URL
+        fromDatabase:
+          name: my-monorepo-db
+          property: connectionString
 
+# 2. Define the PostgreSQL Database Instance
 databases:
-  - name: core-postgres-db
+  - name: my-monorepo-db
     plan: free
+    postgresVersion: 13

@@ -8,6 +8,17 @@ const clientOrigin = process.env.CLIENT_ORIGIN || 'http://127.0.0.1:5173';
 const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 const paystackCallbackUrl = process.env.PAYSTACK_CALLBACK_URL || `${clientOrigin}/`;
 
+const express = require('express');
+const cors = require('cors');
+const app = express();
+
+app.use(cors({
+  origin: 'https://github.io', // Your exact GitHub Pages or frontend URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
+
 const send = (response, status, data) => {
   response.writeHead(status, {
     'Content-Type': 'application/json',

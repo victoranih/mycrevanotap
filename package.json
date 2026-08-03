@@ -10,10 +10,11 @@
  },
  "dependencies": {
   "@vitejs/plugin-react": "latest",
+  "cors": "^2.8.6",
   "lucide-react": "latest",
   "pg": "latest",
   "react": "latest",
   "react-dom": "latest",
-  "vite": "latest"
+  "vite": "^8.2.0"
  }
 }
