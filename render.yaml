@@ -1,18 +1,30 @@
 services:
+  # 1. THE BACKEND SERVICE
   - type: web
-    name: my-web-app
-    runtime: node # Change to python, go, ruby, docker, etc. depending on your tech stack
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    name: my-web-backend
+    env: node # Change to python, go, etc. if needed
     plan: free
     envVars:
+      # This automatically grabs the database connection URL
       - key: DATABASE_URL
         fromDatabase:
           name: my-database
           property: connectionString
-           
 
+  # 2. THE FRONTEND SERVICE
+  - type: web
+    name: my-web-frontend
+    env: static # Or node, depending on your frontend
+    plan: free
+    envVars:
+      # This automatically passes your backend URL to your frontend
+      - key: VITE_API_URL # Change to REACT_APP_API_URL or what your code uses
+        fromService:
+          type: web
+          name: my-web-backend
+          property: url
 
 databases:
+  # 3. THE DATABASE
   - name: my-database
-    plan: free # Options: free, starter, standard, etc.
+    plan: free
