@@ -3,10 +3,20 @@ console.log("🚀 RENDER IS SUCCESSFULLY EXECUTING SERVER/INDEX.JS!");
 
 
 //import express from 'express';
-import http from 'node:http';
-import crypto from 'node:crypto';
-import { URL } from 'node:url';
+//import http from 'node:http';
+//import crypto from 'node:crypto';
+//import { URL } from 'node:url';
+//import { query } from './db.js';
+
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+// FIX: Make sure fileURLToPath is explicitly imported here
+import { fileURLToPath } from 'url'; 
+import dotenv from 'dotenv';
 import { query } from './db.js';
+
+
 
 // 1. Setup Global Error Monitors to log hidden issues
 process.on('uncaughtException', (err) => {
