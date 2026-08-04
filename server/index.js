@@ -858,7 +858,7 @@ const server = http.createServer(async (request, response) => {
   //console.log(`Backend server successfully running on port ${PORT}`);
 //});
 
-const express = require('express');
+
 const cors = require('cors');
 const path = require('path');
 
@@ -869,7 +869,7 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({ path: path.join(__dirname, '../.env') });
 }
 
-
+const app = express();
 app.use(cors());
 app.use(express.json());
 
