@@ -864,14 +864,25 @@ const server = http.createServer(async (request, response) => {
 
 // ONLY load dotenv if we are working locally. 
 // Render handles this automatically in production.
-if (process.env.NODE_ENV !== 'production') {
+//if (process.env.NODE_ENV !== 'production') {
   // Since index.js is inside /server, look one folder up to find the root .env
-  require('dotenv').config({ path: path.join(__dirname, '../.env') });
-}
+  //require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
-app.use(cors());
+//app.use(cors());
 app.use(express.json());
+
+const clientOrigin = process.env.NODE_ENV === 'production'
+  ? 'https://github.io' // Replace with your exact GitHub Pages live site URL
+  : 'http://localhost:5173';
+
+  app.use(cors({
+  origin: clientOrigin,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
+
 
 app.get('/api/health', async (req, res) => {
   try {
