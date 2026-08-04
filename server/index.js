@@ -3,8 +3,13 @@ import crypto from 'node:crypto';
 import { URL } from 'node:url';
 import { query } from './db.js';
 
-const port = Number(process.env.PORT || 4000);
-const clientOrigin = process.env.CLIENT_ORIGIN || 'http://127.0.0.1:5173';
+
+const PORT = process.env.PORT || 5000; 
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend server successfully running on port ${PORT}`);
+});
+
 const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 const paystackCallbackUrl = process.env.PAYSTACK_CALLBACK_URL || `${clientOrigin}/`;
 

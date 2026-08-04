@@ -4,11 +4,11 @@ services:
     name: backend-service
     env: node
     plan: free 
-    # FIX: Remove 'server' and use '.' to point to the root directory
+    # Points Render to the root of the repository where package.json sits
     rootDir: . 
     buildCommand: npm install
-    # FIX: Tell node explicitly to run your server file from the root folder
-    startCommand: node server/index.js 
+    # Invokes the specific script we just mapped out above
+    startCommand: npm run start-backend
     envVars:
       - key: NODE_ENV
         value: production
