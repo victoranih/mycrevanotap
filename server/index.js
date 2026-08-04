@@ -1,7 +1,20 @@
 
 console.log("🚀 RENDER IS SUCCESSFULLY EXECUTING SERVER/INDEX.JS!");
 
-//import express from 'express';
+//Add these to catch hidden crashes
+process.on('uncaughtException', (err) => {
+  console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err.stack || err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 CRITICAL UNHANDLED REJECTION AT:', promise, 'REASON:', reason);
+  process.exit(1);
+});
+
+
+
+import express from 'express';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { URL } from 'node:url';
@@ -840,17 +853,27 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({ path: path.join(__dirname, '../.env') });
 }
 
+
+
+// Bind dynamically to Render's internal port configuration
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend container listening on port ${PORT}`);
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Bind dynamically to Render's internal port configuration
-const PORT = process.env.PORT || 5000;
-
-app.get('/', (req, res) => {
-  res.status(200).send('Backend status: OK');
+app.get('/api/health', async (req, res) => {
+  try {
+    const result = await query('SELECT NOW()');
+    res.json({ status: "ok", db: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend container listening on port ${PORT}`);
-});
+
+
+
