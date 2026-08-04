@@ -1,12 +1,14 @@
 import pg from 'pg';
 
-const { Pool } = pg;
+const { Pool } = require('pg');
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/crevanotap',
+// Render injects DATABASE_URL directly into process.env 
+// from your render.yaml blueprint configuration
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' 
+    ? { rejectUnauthorized: false } // Required for secure Render database connections
+    : false
 });
 
-export async function query(text, params) {
-  const result = await pool.query(text, params);
-  return result;
-}
+module.exports = pool;

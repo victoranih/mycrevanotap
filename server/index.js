@@ -4,24 +4,19 @@ import { URL } from 'node:url';
 import { query } from './db.js';
 
 
-const PORT = process.env.PORT || 5000; 
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend server successfully running on port ${PORT}`);
-});
-
 const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 const paystackCallbackUrl = process.env.PAYSTACK_CALLBACK_URL || `${clientOrigin}/`;
 
-const express = require('express');
-const cors = require('cors');
-const app = express();
+//const express = require('express');
+//const cors = require('cors');
+//const app = express();
 
-app.use(cors({
-  origin: 'https://github.io', // Your exact GitHub Pages or frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
+//app.use(cors({
+ // origin: 'https://github.io', // Your exact GitHub Pages or frontend URL
+ // methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  //credentials: true
+//}));
+
 
 
 const send = (response, status, data) => {
@@ -822,7 +817,31 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
-const host = process.env.HOST || '0.0.0.0';
-server.listen(port, host, () => {
-  console.log(`CREVA NOTAP API running on http://${host}:${port}`);
+
+
+const PORT = process.env.PORT || 5000; 
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend server successfully running on port ${PORT}`);
+});
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+
+// ONLY load dotenv if we are working locally. 
+// Render handles this automatically in production.
+if (process.env.NODE_ENV !== 'production') {
+  // Since index.js is inside /server, look one folder up to find the root .env
+  require('dotenv').config({ path: path.join(__dirname, '../.env') });
+}
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Bind dynamically to Render's internal port configuration
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend container listening on port ${PORT}`);
 });
