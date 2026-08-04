@@ -1,3 +1,7 @@
+
+console.log("🚀 RENDER IS SUCCESSFULLY EXECUTING SERVER/INDEX.JS!");
+
+import express from 'express';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { URL } from 'node:url';
@@ -842,6 +846,11 @@ app.use(express.json());
 
 // Bind dynamically to Render's internal port configuration
 const PORT = process.env.PORT || 5000;
+
+app.get('/', (req, res) => {
+  res.status(200).send('Backend status: OK');
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend container listening on port ${PORT}`);
 });
