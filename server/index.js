@@ -859,7 +859,7 @@ const server = http.createServer(async (request, response) => {
 //});
 
 
-const cors = require('cors');
+//const cors = require('cors');
 const path = require('path');
 
 // ONLY load dotenv if we are working locally. 
