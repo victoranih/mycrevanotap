@@ -873,12 +873,10 @@ const app = express();
 app.use(express.json());
 
 
-  ? 'https://github.com/victoranih/crevanotap-testing.git' // Replace with your exact GitHub Pages live site URL
-  : 'http://localhost:5173';
-
+ 
   app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? 'https://github.io' 
+    ? 'https://victoranih.github.io/crevanotap-testing/' 
     : 'http://localhost:5173',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
