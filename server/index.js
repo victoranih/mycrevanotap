@@ -1,7 +1,14 @@
 
 console.log("🚀 RENDER IS SUCCESSFULLY EXECUTING SERVER/INDEX.JS!");
 
-//Add these to catch hidden crashes
+
+import express from 'express';
+import http from 'node:http';
+import crypto from 'node:crypto';
+import { URL } from 'node:url';
+import { query } from './db.js';
+
+// 1. Setup Global Error Monitors to log hidden issues
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err.stack || err);
   process.exit(1);
@@ -12,14 +19,13 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
+// 2. Setup absolute directory tracking for local environment loading
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-
-import express from 'express';
-import http from 'node:http';
-import crypto from 'node:crypto';
-import { URL } from 'node:url';
-import { query } from './db.js';
-
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: path.join(__dirname, '../.env') });
+}
 
 const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 const paystackCallbackUrl = process.env.PAYSTACK_CALLBACK_URL || `${clientOrigin}/`;
@@ -853,14 +859,6 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({ path: path.join(__dirname, '../.env') });
 }
 
-
-
-// Bind dynamically to Render's internal port configuration
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend container listening on port ${PORT}`);
-});
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -874,6 +872,14 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.status(200).send('Backend status: Live and Running');
+});
 
+// Bind dynamically to Render's internal port configuration
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend container listening on port ${PORT}`);
+});
 
 
