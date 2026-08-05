@@ -1,12 +1,17 @@
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  base: '/crevanotap-testing/',
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:4000',
-    },
-  },
+      // This tells Vite: "When I fetch /api, send it to the local backend"
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  }
 });
