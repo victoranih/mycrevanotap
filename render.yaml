@@ -12,6 +12,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+        # FIX: Force Render's internal reverse proxy to routing channel 5000
+      - key: PORT
+        value: 5000
       # Connects the database to the backend using Render's secure internal network
       - key: DATABASE_URL
         fromDatabase:
