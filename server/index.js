@@ -27,19 +27,27 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config({ path: path.join(__dirname, '../.env') });
 }
 
-// FIX 1: Defined clientOrigin at the top so paystack and send helper can access it safely
-const clientOrigin = process.env.NODE_ENV === 'production'
-  ? 'https://victoranih.github.io'
-  : 'http://localhost:5173';
+const clientOrigin = process.env.CLIENT_ORIGIN || process.env.FRONTEND_URL || 'http://127.0.0.1:5173';
+const allowedOrigins = new Set([
+  clientOrigin,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://victoranih.github.io',
+]);
 
 const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
 const paystackCallbackUrl = process.env.PAYSTACK_CALLBACK_URL || `${clientOrigin}/`;
 
 const app = express();
 
-// Initialize CORS middleware correctly
 app.use(cors({
-  origin: clientOrigin,
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error(`Origin ${origin} is not allowed by CORS.`));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
@@ -254,6 +262,278 @@ async function resetPassword(body) {
   return { ok: true, message: 'Password reset successful.' };
 }
 
+async function getSessionUser(req) {
+  const authorization = req.headers.authorization || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  if (!token) return null;
+
+  const result = await query(
+    `
+      SELECT c.id, c.company_name, c.contact_name, c.email, s.status AS subscription_status, sp.name AS plan_name
+      FROM user_sessions us
+      JOIN clients c ON c.id = us.client_id
+      LEFT JOIN subscriptions s ON s.client_id = c.id
+      LEFT JOIN subscription_plans sp ON sp.id = s.plan_id
+      WHERE us.token_hash = $1
+        AND us.expires_at > now()
+      ORDER BY s.created_at DESC
+      LIMIT 1;
+    `,
+    [hashToken(token)],
+  );
+
+  return result.rows[0] ? mapClientUser(result.rows[0]) : null;
+}
+
+async function requireSessionUser(req) {
+  const user = await getSessionUser(req);
+  if (!user) {
+    const error = new Error('Login is required.');
+    error.status = 401;
+    throw error;
+  }
+  return user;
+}
+
+const mapApplication = (row) => ({
+  id: row.id,
+  title: row.title,
+  contractType: row.contract_type,
+  extendingCertificateNumber: row.extending_certificate_number,
+  certificateNumber: row.certificate_number,
+  duration: Number(row.duration_years),
+  effectiveDate: row.effective_date,
+  approvedFee: Number(row.approved_fee),
+  currency: row.currency,
+  transferor: row.transferor,
+  transferee: row.transferee,
+  sector: row.sector,
+  status: row.status,
+  remittances: row.remittances || [],
+});
+
+async function getApplications(user) {
+  const result = await query(
+    `
+      SELECT
+        a.id,
+        a.title,
+        a.contract_type,
+        a.extending_certificate_number,
+        a.certificate_number,
+        a.duration_years,
+        to_char(a.effective_date, 'YYYY-MM-DD') AS effective_date,
+        a.approved_fee,
+        a.currency,
+        a.transferor,
+        a.transferee,
+        a.sector,
+        a.status,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', r.id,
+              'type', r.remittance_type,
+              'amount', r.amount,
+              'currency', r.currency,
+              'taxPercent', r.tax_percent,
+              'exchangeRate', r.exchange_rate,
+              'convertedAmount', r.amount_in_approved_currency,
+              'date', to_char(r.remitted_on, 'YYYY-MM-DD')
+            )
+            ORDER BY r.remitted_on, r.id
+          ) FILTER (WHERE r.id IS NOT NULL),
+          '[]'
+        ) AS remittances
+      FROM applications a
+      LEFT JOIN remittances r ON r.application_id = a.id
+      WHERE a.client_id = $1
+      GROUP BY a.id
+      ORDER BY a.created_at DESC;
+    `,
+    [user.id],
+  );
+
+  return result.rows.map(mapApplication);
+}
+
+async function normalizeApplicationBody(user, body, currentApplicationId = null) {
+  const contractTypesRequiringCertificate = ['Renewal', 'Extention', 'Additional fee'];
+  if (!contractTypesRequiringCertificate.includes(body.contractType)) {
+    return { ...body, extendingCertificateNumber: null };
+  }
+
+  if (!body.extendingCertificateNumber) {
+    const error = new Error('Certificate number being renewed, extended, or used for additional fee is required.');
+    error.status = 400;
+    throw error;
+  }
+
+  const result = await query(
+    `
+      SELECT
+        a.title,
+        a.status,
+        a.sector,
+        a.transferor,
+        a.transferee,
+        a.currency,
+        GREATEST(a.approved_fee - COALESCE(SUM(r.amount_in_approved_currency), 0), 0) AS balance
+      FROM applications a
+      LEFT JOIN remittances r ON r.application_id = a.id
+      WHERE a.client_id = $1
+        AND a.certificate_number = $2
+        AND ($3::BIGINT IS NULL OR a.id <> $3)
+      GROUP BY a.id;
+    `,
+    [user.id, body.extendingCertificateNumber, currentApplicationId],
+  );
+
+  const referenced = result.rows[0];
+  if (!referenced) {
+    const error = new Error('The referenced certificate number was not found for this client.');
+    error.status = 400;
+    throw error;
+  }
+
+  return {
+    ...body,
+    title: referenced.title,
+    status: referenced.status,
+    sector: referenced.sector,
+    transferor: referenced.transferor,
+    transferee: referenced.transferee,
+    approvedFee: body.contractType === 'Extention' ? Number(referenced.balance) : body.approvedFee,
+    currency: body.contractType === 'Extention' ? referenced.currency : body.currency,
+  };
+}
+
+async function createApplication(user, body) {
+  const normalizedBody = await normalizeApplicationBody(user, body);
+  await query(
+    `
+      INSERT INTO applications (
+        client_id, title, contract_type, extending_certificate_number, certificate_number, duration_years,
+        effective_date, approved_fee, currency, transferor, transferee, sector, status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+    `,
+    [
+      user.id,
+      normalizedBody.title,
+      normalizedBody.contractType || 'New',
+      normalizedBody.extendingCertificateNumber || null,
+      normalizedBody.certificateNumber,
+      normalizedBody.duration,
+      normalizedBody.effectiveDate,
+      normalizedBody.approvedFee,
+      normalizedBody.currency,
+      normalizedBody.transferor,
+      normalizedBody.transferee,
+      normalizedBody.sector,
+      normalizedBody.status,
+    ],
+  );
+}
+
+async function updateApplication(user, applicationId, body) {
+  const normalizedBody = await normalizeApplicationBody(user, body, applicationId);
+  await query(
+    `
+      UPDATE applications
+      SET title = $1,
+          contract_type = $2,
+          extending_certificate_number = $3,
+          certificate_number = $4,
+          duration_years = $5,
+          effective_date = $6,
+          approved_fee = $7,
+          currency = $8,
+          transferor = $9,
+          transferee = $10,
+          sector = $11,
+          status = $12
+      WHERE id = $13
+        AND client_id = $14;
+    `,
+    [
+      normalizedBody.title,
+      normalizedBody.contractType || 'New',
+      normalizedBody.extendingCertificateNumber || null,
+      normalizedBody.certificateNumber,
+      normalizedBody.duration,
+      normalizedBody.effectiveDate,
+      normalizedBody.approvedFee,
+      normalizedBody.currency,
+      normalizedBody.transferor,
+      normalizedBody.transferee,
+      normalizedBody.sector,
+      normalizedBody.status,
+      applicationId,
+      user.id,
+    ],
+  );
+}
+
+async function createRemittance(user, applicationId, body) {
+  const result = await query(
+    `
+      INSERT INTO remittances (application_id, remittance_type, amount, currency, tax_percent, exchange_rate, remitted_on)
+      SELECT a.id, $2, $3, $4, $5, $6, $7
+      FROM applications a
+      WHERE a.id = $1
+        AND a.client_id = $8
+        AND (a.effective_date + (a.duration_years || ' years')::INTERVAL)::DATE >= CURRENT_DATE;
+    `,
+    [applicationId, body.type, body.amount, body.currency, body.taxPercent || 0, body.exchangeRate || 1, body.date, user.id],
+  );
+
+  if (result.rowCount === 0) {
+    const error = new Error('Remittance and WHT cannot be added to an expired certificate.');
+    error.status = 400;
+    throw error;
+  }
+}
+
+async function updateRemittance(user, applicationId, remittanceId, body) {
+  const result = await query(
+    `
+      UPDATE remittances
+      SET remittance_type = $1,
+          amount = $2,
+          currency = $3,
+          tax_percent = $4,
+          exchange_rate = $5,
+          remitted_on = $6
+      WHERE id = $7
+        AND application_id = $8
+        AND EXISTS (
+          SELECT 1
+          FROM applications a
+          WHERE a.id = remittances.application_id
+            AND a.client_id = $9
+            AND (a.effective_date + (a.duration_years || ' years')::INTERVAL)::DATE >= CURRENT_DATE
+        );
+    `,
+    [body.type, body.amount, body.currency, body.taxPercent || 0, body.exchangeRate || 1, body.date, remittanceId, applicationId, user.id],
+  );
+
+  if (result.rowCount === 0) {
+    const error = new Error('Remittance and WHT cannot be edited on an expired certificate.');
+    error.status = 400;
+    throw error;
+  }
+}
+
+const route = (handler) => async (req, res) => {
+  try {
+    const data = await handler(req, res);
+    if (!res.headersSent) res.json(data);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+};
+
 // ==========================================
 // 3. EXPRESS ROUTE API ENDPOINTS
 // ==========================================
@@ -284,12 +564,68 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.status(200).send('Backend status: Live and Running');
+app.post('/api/auth/verify-email', route((req) => verifyClientEmail(req.body)));
+
+app.post('/api/auth/forgot-password', route((req) => requestPasswordReset(req.body)));
+
+app.post('/api/auth/reset-password', route((req) => resetPassword(req.body)));
+
+app.get('/api/auth/me', route(async (req) => {
+  const user = await requireSessionUser(req);
+  return { user };
+}));
+
+app.post('/api/auth/logout', route(async (req) => {
+  const authorization = req.headers.authorization || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  if (token) {
+    await query('DELETE FROM user_sessions WHERE token_hash = $1;', [hashToken(token)]);
+  }
+  return { ok: true };
+}));
+
+app.get('/api/applications', route(async (req) => {
+  const user = await requireSessionUser(req);
+  return getApplications(user);
+}));
+
+app.post('/api/applications', route(async (req) => {
+  const user = await requireSessionUser(req);
+  await createApplication(user, req.body);
+  return getApplications(user);
+}));
+
+app.put('/api/applications/:applicationId', route(async (req) => {
+  const user = await requireSessionUser(req);
+  await updateApplication(user, Number(req.params.applicationId), req.body);
+  return getApplications(user);
+}));
+
+app.post('/api/applications/:applicationId/remittances', route(async (req) => {
+  const user = await requireSessionUser(req);
+  await createRemittance(user, Number(req.params.applicationId), req.body);
+  return getApplications(user);
+}));
+
+app.put('/api/applications/:applicationId/remittances/:remittanceId', route(async (req) => {
+  const user = await requireSessionUser(req);
+  await updateRemittance(user, Number(req.params.applicationId), Number(req.params.remittanceId), req.body);
+  return getApplications(user);
+}));
+
+const distDir = path.join(__dirname, '../dist');
+app.use(express.static(distDir));
+
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ error: 'API route not found.' });
+    return;
+  }
+  res.sendFile(path.join(distDir, 'index.html'));
 });
 
 // FIX 3: Restored the vital Port binding listener so Render's port-scanner connects
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend server successfully listening on port ${PORT}`);
 });

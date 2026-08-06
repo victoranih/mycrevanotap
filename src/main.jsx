@@ -45,17 +45,24 @@ const currencies = ['NGN', 'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'ZAR'];
 const contractTypes = ['New', 'Renewal', 'Extention', 'Additional fee'];
 const contractTypesRequiringCertificate = ['Renewal', 'Extention', 'Additional fee'];
 
-//const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-//const apiUrl = `${apiBaseUrl}/api/applications`;
-//const authUrl = `${apiBaseUrl}/api/auth`;
-//const paystackUrl = `${apiBaseUrl}/api/paystack`;
-
-
-// FIX: Change VITE_API_BASE_URL to VITE_API_URL to match your environment keys perfectly
-const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+const configuredApiBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+const localApiBaseUrl = import.meta.env.DEV ? 'http://127.0.0.1:4000' : '';
+const apiBaseUrl = (configuredApiBaseUrl || localApiBaseUrl).replace(/\/$/, '');
 const apiUrl = `${apiBaseUrl}/api/applications`;
 const authUrl = `${apiBaseUrl}/api/auth`;
 const paystackUrl = `${apiBaseUrl}/api/paystack`;
+
+const parseApiResponse = async (response) => {
+  const text = await response.text();
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const preview = text.replace(/\s+/g, ' ').slice(0, 120);
+    throw new Error(
+      `The app received a web page instead of API data from ${response.url}. Set VITE_API_URL to the backend server URL, or remove VITE_API_URL when frontend and backend are deployed as one service. Response preview: ${preview}`,
+    );
+  }
+  return text ? JSON.parse(text) : {};
+};
 
 
 const subscriptionPlans = [
@@ -281,7 +288,7 @@ function App() {
     try {
       const response = await fetch(`${authUrl}/me`, { headers: authHeaders(authToken) });
       if (!response.ok) throw new Error('Stored session expired.');
-      const data = await response.json();
+      const data = await parseApiResponse(response);
       setCurrentUser(data.user);
       setPaymentComplete(data.user.subscriptionStatus === 'Active');
     } catch {
@@ -296,7 +303,7 @@ function App() {
 
     try {
       const response = await fetch(apiUrl, { headers: authHeaders(token) });
-      const data = await response.json();
+      const data = await parseApiResponse(response);
       if (!response.ok) throw new Error(data.error || 'Unable to load applications from PostgreSQL.');
       setApplications(data);
       setSelectedId((current) => (data.some((app) => app.id === current) ? current : data[0]?.id || null));
@@ -340,7 +347,7 @@ function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: formData.get('email'), token: formData.get('token') }),
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) throw new Error(data.error || 'Email verification failed.');
         setAuthNotice(data.message);
         setAuthMode('login');
@@ -354,7 +361,7 @@ function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: formData.get('email') }),
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) throw new Error(data.error || 'Password reset request failed.');
         setPendingEmail(formData.get('email'));
         setDevToken(data.resetToken || '');
@@ -369,7 +376,7 @@ function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: formData.get('email'), token: formData.get('token'), password: formData.get('password') }),
         });
-        const data = await response.json();
+        const data = await parseApiResponse(response);
         if (!response.ok) throw new Error(data.error || 'Password reset failed.');
         setAuthNotice(data.message);
         setAuthMode('login');
@@ -390,7 +397,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
+      const data = await parseApiResponse(response);
       if (!response.ok) throw new Error(data.error || 'Authentication failed.');
 
       if (!isReturning) {
@@ -423,7 +430,7 @@ function App() {
         headers: jsonHeaders(),
         body: JSON.stringify({ planId: selectedPlan }),
       });
-      const data = await response.json();
+      const data = await parseApiResponse(response);
       if (!response.ok) throw new Error(data.error || 'Unable to start Paystack payment.');
       window.location.href = data.authorizationUrl;
     } catch (error) {
@@ -442,7 +449,7 @@ function App() {
         headers: jsonHeaders(),
         body: JSON.stringify({ reference }),
       });
-      const data = await response.json();
+      const data = await parseApiResponse(response);
       if (!response.ok) throw new Error(data.error || 'Unable to verify Paystack payment.');
       setPaymentComplete(true);
       setCurrentUser((user) => user ? { ...user, subscriptionStatus: 'Active', plan: data.planId || user.plan } : user);
@@ -600,7 +607,7 @@ function App() {
         body: JSON.stringify(app),
       });
       if (!response.ok) throw new Error(editingApplicationId ? 'PostgreSQL rejected the application update.' : 'PostgreSQL rejected the new application.');
-      const data = await response.json();
+      const data = await parseApiResponse(response);
       setApplications(data);
       setSelectedId(editingApplicationId || data.find((item) => item.certificateNumber === app.certificateNumber)?.id || data[0]?.id || null);
       setEditingApplicationId(null);
@@ -651,7 +658,7 @@ function App() {
         body: JSON.stringify({ ...payment, amount: netRemittanceAmount, taxPercent, exchangeRate: Number(payment.exchangeRate || 1) }),
       });
       if (!response.ok) throw new Error('PostgreSQL rejected this remittance/WHT because it failed validation.');
-      let data = await response.json();
+      let data = await parseApiResponse(response);
       if (shouldSplitTax && whtAmount > 0) {
         const whtResponse = await fetch(`${apiUrl}/${selected.id}/remittances`, {
           method: 'POST',
@@ -659,7 +666,7 @@ function App() {
           body: JSON.stringify({ ...payment, type: 'WHT', amount: whtAmount, taxPercent, exchangeRate: Number(payment.exchangeRate || 1) }),
         });
         if (!whtResponse.ok) throw new Error('PostgreSQL rejected the calculated WHT tranche.');
-        data = await whtResponse.json();
+        data = await parseApiResponse(whtResponse);
       }
       setApplications(data);
       setSelectedId(selected.id);

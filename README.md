@@ -164,7 +164,9 @@ Frontend settings:
 Build command: npm install && npm run build
 Publish directory: dist
 Environment:
-  VITE_API_BASE_URL=https://your-backend-api-url
+  VITE_API_URL=https://your-backend-api-url
 ```
+
+`VITE_API_BASE_URL` is also supported, but use `VITE_API_URL` if you are setting it up fresh.
 
 After deployment, run `db/schema.sql` and `db/seed.sql` on the hosted PostgreSQL database. If the database already exists, run the migration files listed above, especially `db/migration-add-paystack-payments.sql`.
