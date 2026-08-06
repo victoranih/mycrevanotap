@@ -45,10 +45,18 @@ const currencies = ['NGN', 'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'ZAR'];
 const contractTypes = ['New', 'Renewal', 'Extention', 'Additional fee'];
 const contractTypesRequiringCertificate = ['Renewal', 'Extention', 'Additional fee'];
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+//const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+//const apiUrl = `${apiBaseUrl}/api/applications`;
+//const authUrl = `${apiBaseUrl}/api/auth`;
+//const paystackUrl = `${apiBaseUrl}/api/paystack`;
+
+
+// FIX: Change VITE_API_BASE_URL to VITE_API_URL to match your environment keys perfectly
+const apiBaseUrl = import.meta.env.VITE_API_URL || '';
 const apiUrl = `${apiBaseUrl}/api/applications`;
 const authUrl = `${apiBaseUrl}/api/auth`;
 const paystackUrl = `${apiBaseUrl}/api/paystack`;
+
 
 const subscriptionPlans = [
   {
