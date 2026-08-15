@@ -13,22 +13,23 @@ import pkg from 'pg';
 const { Pool } = pkg;
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/crevanotap';
+const databaseUrl = new URL(connectionString);
+const isLocalDatabase = ['localhost', '127.0.0.1', '::1'].includes(databaseUrl.hostname);
 
 const pool = new Pool({
   connectionString,
-  ssl: process.env.NODE_ENV === 'production' 
-    ? { rejectUnauthorized: false } 
-    : false
+  ssl: isLocalDatabase ? false : { rejectUnauthorized: false },
+  connectionTimeoutMillis: 10000,
 });
 
 export const databaseConfig = (() => {
   try {
-    const url = new URL(connectionString);
     return {
-      host: url.hostname,
-      port: url.port || '5432',
-      database: url.pathname.replace(/^\//, ''),
-      user: decodeURIComponent(url.username || ''),
+      host: databaseUrl.hostname,
+      port: databaseUrl.port || '5432',
+      database: databaseUrl.pathname.replace(/^\//, ''),
+      user: decodeURIComponent(databaseUrl.username || ''),
+      ssl: isLocalDatabase ? 'off' : 'on',
     };
   } catch {
     return { host: 'invalid DATABASE_URL', port: '', database: '', user: '' };
@@ -41,6 +42,9 @@ export const query = async (text, params) => {
   } catch (error) {
     if (error instanceof AggregateError || error.name === 'AggregateError') {
       throw new Error(`Could not connect to PostgreSQL at ${databaseConfig.host}:${databaseConfig.port}/${databaseConfig.database}. Check DATABASE_URL and confirm PostgreSQL is running.`);
+    }
+    if (error.message === 'Connection terminated unexpectedly') {
+      throw new Error(`Connection to PostgreSQL was terminated at ${databaseConfig.host}:${databaseConfig.port}/${databaseConfig.database}. Check that DATABASE_URL is the hosted database URL and that SSL is enabled for non-local databases.`);
     }
     throw error;
   }
