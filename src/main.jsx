@@ -398,7 +398,9 @@ function App() {
         body: JSON.stringify(payload),
       });
       const data = await parseApiResponse(response);
-      if (!response.ok) throw new Error(data.error || 'Authentication failed.');
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `Authentication failed (${response.status}) at ${response.url}.`);
+      }
 
       if (!isReturning) {
         setPendingEmail(data.email);

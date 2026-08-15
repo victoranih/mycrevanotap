@@ -538,6 +538,10 @@ const route = (handler) => async (req, res) => {
 // 3. EXPRESS ROUTE API ENDPOINTS
 // ==========================================
 app.get('/api/health', async (req, res) => {
+  res.json({ status: 'ok', service: 'crevanotap' });
+});
+
+app.get('/api/db-health', async (req, res) => {
   try {
     const result = await query('SELECT NOW()'); 
     res.json({ status: "ok", dbTime: result.rows });
@@ -560,7 +564,11 @@ app.post('/api/auth/login', async (req, res) => {
     const data = await loginClient(req.body);
     res.json(data);
   } catch (err) {
-    res.status(err.status || 500).json({ error: err.message });
+    console.error('Login failed:', err);
+    const message = err.status || process.env.NODE_ENV !== 'production'
+      ? (err.message || String(err))
+      : 'Authentication failed.';
+    res.status(err.status || 500).json({ error: message });
   }
 });
 

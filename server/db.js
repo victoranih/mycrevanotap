@@ -12,12 +12,37 @@ if (!process.env.DATABASE_URL) {
 import pkg from 'pg';
 const { Pool } = pkg;
 
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/crevanotap';
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // This will now perfectly resolve
+  connectionString,
   ssl: process.env.NODE_ENV === 'production' 
     ? { rejectUnauthorized: false } 
     : false
 });
 
-export const query = (text, params) => pool.query(text, params);
+export const databaseConfig = (() => {
+  try {
+    const url = new URL(connectionString);
+    return {
+      host: url.hostname,
+      port: url.port || '5432',
+      database: url.pathname.replace(/^\//, ''),
+      user: decodeURIComponent(url.username || ''),
+    };
+  } catch {
+    return { host: 'invalid DATABASE_URL', port: '', database: '', user: '' };
+  }
+})();
+
+export const query = async (text, params) => {
+  try {
+    return await pool.query(text, params);
+  } catch (error) {
+    if (error instanceof AggregateError || error.name === 'AggregateError') {
+      throw new Error(`Could not connect to PostgreSQL at ${databaseConfig.host}:${databaseConfig.port}/${databaseConfig.database}. Check DATABASE_URL and confirm PostgreSQL is running.`);
+    }
+    throw error;
+  }
+};
 export default pool;
