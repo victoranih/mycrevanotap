@@ -33,6 +33,7 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'https://victoranih.github.io',
+  'https://mycrevanotap.onrender.com',
 ]);
 
 const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
@@ -42,7 +43,8 @@ const app = express();
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) {
+    const isRenderPreview = /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin || '');
+    if (!origin || allowedOrigins.has(origin) || isRenderPreview) {
       callback(null, true);
       return;
     }
