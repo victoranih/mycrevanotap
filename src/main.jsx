@@ -63,7 +63,8 @@ const contractTypesRequiringCertificate = ['Renewal', 'Extention', 'Additional f
 const configuredApiBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
 const localApiBaseUrl = import.meta.env.DEV ? 'http://127.0.0.1:4000' : '';
 const normalizedConfiguredApiBaseUrl = configuredApiBaseUrl.replace(/\/$/, '');
-const apiBaseUrl = import.meta.env.PROD ? '' : (normalizedConfiguredApiBaseUrl || localApiBaseUrl);
+const isLocalBrowser = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const apiBaseUrl = isLocalBrowser ? (normalizedConfiguredApiBaseUrl || localApiBaseUrl) : '';
 const apiUrl = `${apiBaseUrl}/api/applications`;
 const authUrl = `${apiBaseUrl}/api/auth`;
 const paystackUrl = `${apiBaseUrl}/api/paystack`;
