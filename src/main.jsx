@@ -24,6 +24,21 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
+if (typeof window !== 'undefined' && !window.__crevaFetchDiagnostics) {
+  window.__crevaFetchDiagnostics = true;
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    try {
+      return await nativeFetch(input, init);
+    } catch (error) {
+      const requestUrl = typeof input === 'string'
+        ? new URL(input, window.location.origin).href
+        : input?.url || 'unknown URL';
+      throw new Error(`Could not reach ${requestUrl}. ${error.message}`);
+    }
+  };
+}
+
 const sectors = [
   'ICT',
   'Manufacturing',
@@ -48,10 +63,7 @@ const contractTypesRequiringCertificate = ['Renewal', 'Extention', 'Additional f
 const configuredApiBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
 const localApiBaseUrl = import.meta.env.DEV ? 'http://127.0.0.1:4000' : '';
 const normalizedConfiguredApiBaseUrl = configuredApiBaseUrl.replace(/\/$/, '');
-const productionApiBaseUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(normalizedConfiguredApiBaseUrl)
-  ? ''
-  : normalizedConfiguredApiBaseUrl;
-const apiBaseUrl = import.meta.env.PROD ? productionApiBaseUrl : (normalizedConfiguredApiBaseUrl || localApiBaseUrl);
+const apiBaseUrl = import.meta.env.PROD ? '' : (normalizedConfiguredApiBaseUrl || localApiBaseUrl);
 const apiUrl = `${apiBaseUrl}/api/applications`;
 const authUrl = `${apiBaseUrl}/api/auth`;
 const paystackUrl = `${apiBaseUrl}/api/paystack`;
