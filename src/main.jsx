@@ -68,6 +68,7 @@ const apiBaseUrl = isLocalBrowser ? (normalizedConfiguredApiBaseUrl || localApiB
 const apiUrl = `${apiBaseUrl}/api/applications`;
 const authUrl = `${apiBaseUrl}/api/auth`;
 const paystackUrl = `${apiBaseUrl}/api/paystack`;
+const hostedPaystackPaymentUrl = import.meta.env.VITE_PAYSTACK_PAYMENT_URL || 'https://paystack.shop/pay/gtk8b9ihtc';
 
 const parseApiResponse = async (response) => {
   const text = await response.text();
@@ -444,6 +445,13 @@ function App() {
     setPaymentError('');
 
     try {
+      if (hostedPaystackPaymentUrl) {
+        window.open(hostedPaystackPaymentUrl, '_blank', 'noopener,noreferrer');
+        setPaymentError('Complete payment on the Paystack page, then return here and click "I have completed payment".');
+        setPaymentBusy(false);
+        return;
+      }
+
       const response = await fetch(`${paystackUrl}/initialize`, {
         method: 'POST',
         headers: jsonHeaders(),
@@ -746,6 +754,8 @@ function App() {
           setSelectedPlan={setSelectedPlan}
           selectedPlanDetails={selectedPlanDetails}
           onPay={startSubscriptionPayment}
+          onConfirmPayment={() => setPaymentComplete(true)}
+          paymentLink={hostedPaystackPaymentUrl}
           paymentBusy={paymentBusy}
           paymentError={paymentError}
         />
@@ -1182,7 +1192,7 @@ function LoginScreen({ authMode, setAuthMode, selectedPlan, setSelectedPlan, sel
   );
 }
 
-function SubscriptionScreen({ selectedPlan, setSelectedPlan, selectedPlanDetails, onPay, paymentBusy, paymentError }) {
+function SubscriptionScreen({ selectedPlan, setSelectedPlan, selectedPlanDetails, onPay, onConfirmPayment, paymentLink, paymentBusy, paymentError }) {
   const isEnterprise = selectedPlanDetails.id === 'enterprise';
 
   return (
@@ -1203,13 +1213,18 @@ function SubscriptionScreen({ selectedPlan, setSelectedPlan, selectedPlanDetails
         <p className="helper">
           {isEnterprise
             ? 'Enterprise subscriptions are activated by CREVA after custom billing.'
-            : 'You will be redirected to Paystack to complete payment securely.'}
+            : paymentLink ? 'Open the Paystack payment page, complete payment, then return here.' : 'You will be redirected to Paystack to complete payment securely.'}
         </p>
         {paymentError && <p className="error">{paymentError}</p>}
         <button onClick={onPay} disabled={paymentBusy || isEnterprise}>
           <Check size={18} />
-          {paymentBusy ? 'Opening Paystack...' : isEnterprise ? 'Contact CREVA billing' : 'Pay with Paystack'}
+          {paymentBusy ? 'Opening Paystack...' : isEnterprise ? 'Contact CREVA billing' : paymentLink ? 'Open Paystack payment page' : 'Pay with Paystack'}
         </button>
+        {paymentLink && !isEnterprise && (
+          <button type="button" className="secondary-button" onClick={onConfirmPayment}>
+            <Check size={18} /> I have completed payment
+          </button>
+        )}
       </div>
     </section>
   );
